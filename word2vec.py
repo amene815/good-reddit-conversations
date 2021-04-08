@@ -140,7 +140,7 @@ def main():
     # save to csv file
     column_names = ["filepath"] + ["x_" + str(dim) for dim in range(args.dimensions)]
     out = pd.DataFrame(out, columns=column_names)
-    out.fillna(0, inplace=True) # FIXME: this is a HACK?
+    out.fillna(0, inplace=True)
     out = out.sort_values(["filepath"])
     out.to_csv(args.output_path, index=None)
 

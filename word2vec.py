@@ -13,6 +13,8 @@ import argparse
 import os
 import time
 import pandas as pd
+import pdb
+import re
 
 import torch
 from gensim.models import Word2Vec
@@ -57,7 +59,7 @@ parser.add_argument("--tmp-dir",
 parser.add_argument("--dimensions",
                     type=int,
                     default=32,
-                    help="Number of dimensions. Default is 128.")
+                    help="Number of dimensions. Default is 32.")
 
 parser.add_argument("--workers",
                     type=int,
@@ -93,23 +95,34 @@ def load_wv_embedding(wv_embedding_file: str):
             "stoi": stoi,
             "w2c": w2c}
 
+
 def main():
 
-    # TODO: Connect with preprocessed data, write function to building corpus
-    post2words_dict, corpus = build_post2word_dict(args)
+    path = "data\\tokenized-data.csv"
+
+    df = pd.read_csv(path)
+    re.sub("[\[\]\,\']","",df['stem_meaningful'][0]).split(" ")
+
+
+    post2words_dict = {item[0]:re.sub("[\[\]\,\']","",item[1]['stem_meaningful']).split(" ") for item in df.iterrows()}
+
+    corpus = []
+    for post in post2words_dict.values():
+        for word in post:
+            corpus.append(word)
 
     # see detailed parameter settings in https://radimrehurek.com/gensim/models/word2vec.html
     w2v_model = Word2Vec(min_count=1, # Ignores all words with total frequency lower than this
                          window=10, # Maximum distance between the current and predicted word within a sentence
-                         size=args.dimensions, # Dimensionality of the word vectors.
+                         vector_size=args.dimensions, # Dimensionality of the word vectors.
                          sample=6e-5,
                          alpha=0.03, # The initial learning rate
                          min_alpha=0.0007, # Learning rate will linearly drop to min_alpha as training progresses
                          negative=20, # negative sampling will be used, the int for negative specifies how many “noise words” should be drawn (usually between 5-20)
-                         iter=args.epochs, # Number of iterations (epochs) over the corpus
+                         epochs=args.epochs, # Number of iterations (epochs) over the corpus
                          workers=args.workers)
 
-    # build vocal
+    # build vocab
     t = time.time()
     w2v_model.build_vocab(corpus, progress_per=10000)
 
@@ -124,6 +137,8 @@ def main():
     embed_dict = load_wv_embedding(args.save_word2vec_wv)
 
     # load file from embedding and create vector-representataion
+    graph_docs = post2words_dict.keys()
+
     out = []
     for infile in graph_docs:
         if infile not in post2words_dict:
@@ -131,11 +146,12 @@ def main():
         try:
             word_list = [embed_dict["stoi"][word] for word in post2words_dict[infile]]
         except:
-            raise ValueError("File containing operation out of vocal !!!")
+            raise ValueError("File containing operation out of vocab !!!")
         layer_input = torch.LongTensor(word_list)
         file_word_embedding = embed_dict["embedding_layer"](layer_input)
         file_embedding = torch.mean(file_word_embedding, dim=0).tolist() # average the embedding for each word
-        out.append([infile] + file_embedding)
+        breakpoint()
+        out.append(file_embedding + df['max_following_posts'][infile])
 
     # save to csv file
     column_names = ["filepath"] + ["x_" + str(dim) for dim in range(args.dimensions)]

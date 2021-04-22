@@ -117,6 +117,7 @@ def main(args=None):
 
     with open('data\\non-tokenized-data.csv', 'w', encoding='utf-8') as csvfile:
         writer = csv.writer(csvfile, delimiter=',')
+        writer.writerows(['id', 'body', 'max_len'])
         writer.writerows(max_lens)
         # for row in max_lens:
         #     writer.writerow(row)

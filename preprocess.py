@@ -3,30 +3,20 @@ from matplotlib import pyplot as plt
 from sklearn.linear_model import LogisticRegression
 import csv
 
+import pdb
+
 import nltk
 from nltk.corpus import stopwords
-from nltk.tokenize import word_tokenize 
+from nltk.tokenize import word_tokenize
 
 import networkx
 
 
 import pandas as pd
-data1 = pd.read_csv('2017-11.csv')
-data2 = pd.read_csv('2017-12.csv')
-data3 = pd.read_csv('2018-01.csv')
-data4 = pd.read_csv('2018-02.csv')
-data5 = pd.read_csv('2018-03.csv')
 
-data = pd.concat([data1,data2,data3,data4,data5])
+data = pd.read_csv('data\\non-tokenized-data.csv')
 print("Data size = {}".format(len(data)))
 
-# Drop N/A Values
-data = data.dropna(subset=['body'],inplace=True)
-
-# vectorizer = CountVectorizer()
-# piece_of_data = vectorizer.fit_transform(data['body'])
-# vocab = vectorizer.vocabulary_
-# print("Vocab size = {}".format(len(vocab)))
 
 # Pre Processing
 
@@ -45,7 +35,8 @@ def identify_tokens(row):
 
 data['words'] = data.apply(identify_tokens,axis=1)
 
-# Stemming 
+
+# Stemming
 print('\nStemming')
 from nltk.stem import PorterStemmer
 stemming = PorterStemmer()
@@ -68,9 +59,6 @@ def remove_stops(row):
 
 data['stem_meaningful'] = data.apply(remove_stops,axis=1)
 
-print(data['stem_meaningful'][0])
+data = data[["id",'stemmed_words','max_len']]
 
-# Linear Regression
-# Use scikit
-
-
+data.to_csv("data/tokenized-data.csv")

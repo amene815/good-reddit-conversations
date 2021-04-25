@@ -2,11 +2,7 @@
 """
 Example run:
 
-    python word2vec.py --tmp-dir features_word2vec \
-        --save-word2vec-wv js.wv \
-        --input-dataset datasets/prod/js/embeddings_full.json \
-        --output-path features_word2vec/js_embeddings.full.csv \
-        --save-model-path features_word2vec/js_embeddings.full.model
+    python word2vec.py --save-word2vec-wv js.wv --output-path features_word2vec/js_embeddings.full.csv --epochs 5
 """
 
 import argparse
@@ -24,14 +20,6 @@ import multiprocessing
 
 parser = argparse.ArgumentParser(description="Run word2Vec.")
 
-parser.add_argument("--input-paths",
-                    nargs="+",
-                    help="Input folders with jsons.")
-
-parser.add_argument("--input-dataset",
-                    type=str,
-                    help="Input dataset spec")
-
 parser.add_argument("--output-path",
                     type=str,
                     required=True,
@@ -46,15 +34,6 @@ parser.add_argument("--save-word2vec-wv",
                     type=str,
                     required=True,
                     help="word2vec wv embeddings path.")
-
-parser.add_argument("--save-model-path",
-                    type=str,
-                    help="Save model path.")
-
-parser.add_argument("--tmp-dir",
-                    type=str,
-                    default="features/",
-                    help="temporary directory for wv embedding file")
 
 parser.add_argument("--dimensions",
                     type=int,
@@ -81,14 +60,14 @@ def load_wv_embedding(wv_embedding_file: str):
     # save stoi itos
     itos = {}
     stoi = {}
-    for k in model.wv.vocab.keys():
-        itos[model.wv.vocab[k].index] = k
-        stoi[k] = model.wv.vocab[k].index
+    for k in model.vocab.keys():
+        itos[model.vocab[k].index] = k
+        stoi[k] = model.vocab[k].index
 
     # word count
     w2c = dict()
-    for item in model.wv.vocab:
-        w2c[item]=model.wv.vocab[item].count
+    for item in model.vocab:
+        w2c[item]=model.vocab[item].count
 
     return {"embedding_layer":embedding_layer,
             "itos": itos,
@@ -108,8 +87,7 @@ def main():
 
     corpus = []
     for post in post2words_dict.values():
-        for word in post:
-            corpus.append(word)
+            corpus.append(post)
 
     # see detailed parameter settings in https://radimrehurek.com/gensim/models/word2vec.html
     w2v_model = Word2Vec(min_count=1, # Ignores all words with total frequency lower than this
@@ -150,11 +128,10 @@ def main():
         layer_input = torch.LongTensor(word_list)
         file_word_embedding = embed_dict["embedding_layer"](layer_input)
         file_embedding = torch.mean(file_word_embedding, dim=0).tolist() # average the embedding for each word
-        breakpoint()
-        out.append(file_embedding + df['max_following_posts'][infile])
+        out.append(file_embedding + df['max_following_posts'][infile]) # This add will cause a numerical add, rather than append on list. Is that correct?
 
     # save to csv file
-    column_names = ["filepath"] + ["x_" + str(dim) for dim in range(args.dimensions)]
+    column_names = ["filepath"] + ["x_" + str(dim) for dim in range(args.dimensions)] # There is no filepath in out.
     out = pd.DataFrame(out, columns=column_names)
     out.fillna(0, inplace=True)
     out = out.sort_values(["filepath"])

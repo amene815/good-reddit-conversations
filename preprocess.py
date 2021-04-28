@@ -59,4 +59,6 @@ def remove_stops(row):
 
 data['stem_meaningful'] = data.apply(remove_stops,axis=1)
 
-data.to_csv("data\\tokenized-data.csv")
+data = data[["id",'stemmed_words','max_len']]
+
+data.to_csv("data/tokenized-data.csv")

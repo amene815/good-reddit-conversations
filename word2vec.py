@@ -2,11 +2,7 @@
 """
 Example run:
 
-    python word2vec.py --tmp-dir features_word2vec \
-        --save-word2vec-wv js.wv \
-        --input-dataset datasets/prod/js/embeddings_full.json \
-        --output-path features_word2vec/js_embeddings.full.csv \
-        --save-model-path features_word2vec/js_embeddings.full.model
+    python word2vec.py --save-word2vec-wv js.wv --output-path features_word2vec/js_embeddings.full.csv --epochs 5
 """
 
 import argparse
@@ -23,7 +19,6 @@ import multiprocessing
 
 
 parser = argparse.ArgumentParser(description="Run word2Vec.")
-
 
 parser.add_argument("--output-path",
                     type=str,
@@ -136,11 +131,9 @@ def main():
         layer_input = torch.LongTensor(word_list)
         file_word_embedding = embed_dict["embedding_layer"](layer_input)
         file_embedding = torch.mean(file_word_embedding, dim=0).tolist() # average the embedding for each word
-        # breakpoint()
         out.append((file_embedding,df['max_len'][infile]))
 
     # save to csv file
-    column_names = ["filepath"] + ["x_" + str(dim) for dim in range(args.dimensions)]
     out = pd.DataFrame(out, columns=['post_embedding','max_len'])
     out.to_csv(args.output_path, index=None)
 

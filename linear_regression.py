@@ -1,27 +1,37 @@
 
 import numpy as np
+import pandas as pd
+import re
 from sklearn.linear_model import LinearRegression
 from numpy import random
 from sklearn.model_selection import train_test_split
 
 
-word_embeddings = np.array([ np.random.randint(2, size=10) for _ in range(50)])
+
+# post_embeddings = np.array([ np.random.randint(2, size=10) for _ in range(50)])
 
 
+df = pd.read_csv("vectorized_data.csv")
 
-# number of following conversations.
-response = np.array(np.random.randint(50, size=50))
+post_embeddings = df['post_embedding'].values.tolist()
+# Data processing
+post_embeddings = [np.asarray(re.sub("[\[\]\,\']","",x).split(' '),dtype=np.float64) for x in post_embeddings]
+response = df['max_len'].values.tolist()
 
 
-X_train, X_test, y_train, y_test = train_test_split(word_embeddings, response, test_size=0.33, random_state=123)
+# # number of following conversations.
+# response = np.array(np.random.randint(50, size=50))
 
 
-print("word embeddings shape: " , word_embeddings.shape)
-print("response shape: " , response.shape)
+X_train, X_test, y_train, y_test = train_test_split(post_embeddings, response, test_size=0.33, random_state=123)
+
+
+# print("post embeddings shape: " , post_embeddings.shape)
+# print("response shape: " , response.shape)
 
 model = LinearRegression().fit(X_train, y_train)
 
-r_sq = model.score(word_embeddings, response)
+r_sq = model.score(post_embeddings, response)
 print('R Squared:', r_sq)
 
 coefficients = model.coef_

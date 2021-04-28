@@ -24,37 +24,21 @@ import multiprocessing
 
 parser = argparse.ArgumentParser(description="Run word2Vec.")
 
-parser.add_argument("--input-paths",
-                    nargs="+",
-                    help="Input folders with jsons.")
-
-parser.add_argument("--input-dataset",
-                    type=str,
-                    help="Input dataset spec")
 
 parser.add_argument("--output-path",
                     type=str,
-                    required=True,
+                    default='vectorized_data.csv',
                     help="word2vec embeddings path.")
 
 parser.add_argument("--epochs",
                     type=int,
-                    required=True,
+                    default=1,
                     help="Epochs.")
 
 parser.add_argument("--save-word2vec-wv",
                     type=str,
-                    required=True,
+                    default='embeddedings.txt',
                     help="word2vec wv embeddings path.")
-
-parser.add_argument("--save-model-path",
-                    type=str,
-                    help="Save model path.")
-
-parser.add_argument("--tmp-dir",
-                    type=str,
-                    default="features/",
-                    help="temporary directory for wv embedding file")
 
 parser.add_argument("--dimensions",
                     type=int,
@@ -66,7 +50,7 @@ parser.add_argument("--workers",
                     default=multiprocessing.cpu_count(),
                     help="Number of workers. Default is 4.")
 
-
+print(parser)
 args = parser.parse_args()
 
 def load_wv_embedding(wv_embedding_file: str):
@@ -79,16 +63,19 @@ def load_wv_embedding(wv_embedding_file: str):
     embedding_layer = torch.nn.Embedding.from_pretrained(weights)
 
     # save stoi itos
-    itos = {}
+    itos = []
     stoi = {}
-    for k in model.wv.vocab.keys():
-        itos[model.wv.vocab[k].index] = k
-        stoi[k] = model.wv.vocab[k].index
+    #Use KeyedVector's .key_to_index dict, .index_to_key list, and methods .get_vecattr(key, attr) and .set_vecattr(key, attr, new_val) instead.
+    # for k in model.key_to_index.keys():
+    #     #itos[model.vocab[k]] = k
+    #     stoi[k] = model.index_to_key
+    itos = model.index_to_key
+    stoi = model.key_to_index
 
     # word count
     w2c = dict()
-    for item in model.wv.vocab:
-        w2c[item]=model.wv.vocab[item].count
+    for item in stoi.values():
+        w2c[item]=model.get_vecattr(item,"count")
 
     return {"embedding_layer":embedding_layer,
             "itos": itos,
@@ -98,7 +85,7 @@ def load_wv_embedding(wv_embedding_file: str):
 
 def main():
 
-    path = "data\\tokenized-data.csv"
+    path = "/home/amar/Documents/NLP/project/good-reddit-conversations/data/tokenized-data.csv"
 
     df = pd.read_csv(path)
     re.sub("[\[\]\,\']","",df['stem_meaningful'][0]).split(" ")
@@ -108,8 +95,7 @@ def main():
 
     corpus = []
     for post in post2words_dict.values():
-        for word in post:
-            corpus.append(word)
+        corpus.append(post)
 
     # see detailed parameter settings in https://radimrehurek.com/gensim/models/word2vec.html
     w2v_model = Word2Vec(min_count=1, # Ignores all words with total frequency lower than this
@@ -150,14 +136,12 @@ def main():
         layer_input = torch.LongTensor(word_list)
         file_word_embedding = embed_dict["embedding_layer"](layer_input)
         file_embedding = torch.mean(file_word_embedding, dim=0).tolist() # average the embedding for each word
-        breakpoint()
-        out.append(file_embedding + df['max_following_posts'][infile])
+        # breakpoint()
+        out.append((file_embedding,df['max_len'][infile]))
 
     # save to csv file
     column_names = ["filepath"] + ["x_" + str(dim) for dim in range(args.dimensions)]
-    out = pd.DataFrame(out, columns=column_names)
-    out.fillna(0, inplace=True)
-    out = out.sort_values(["filepath"])
+    out = pd.DataFrame(out, columns=['post_embedding','max_len'])
     out.to_csv(args.output_path, index=None)
 
 if __name__ == "__main__":

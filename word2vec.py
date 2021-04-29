@@ -80,13 +80,13 @@ def load_wv_embedding(wv_embedding_file: str):
 
 def main():
 
-    path = "/home/amar/Documents/NLP/project/good-reddit-conversations/data/tokenized-data.csv"
+    path = "./data/tokenized-data.csv"
 
     df = pd.read_csv(path)
-    re.sub("[\[\]\,\']","",df['stem_meaningful'][0]).split(" ")
+    re.sub("[\[\]\,\']","",df['stemmed_words'][0]).split(" ")
 
 
-    post2words_dict = {item[0]:re.sub("[\[\]\,\']","",item[1]['stem_meaningful']).split(" ") for item in df.iterrows()}
+    post2words_dict = {item[0]:re.sub("[\[\]\,\']","",item[1]['stemmed_words']).split(" ") for item in df.iterrows()}
 
     corpus = []
     for post in post2words_dict.values():

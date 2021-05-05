@@ -9,8 +9,10 @@ import argparse
 import os
 import time
 import pandas as pd
-import pdb
 import re
+from sklearn.model_selection import train_test_split
+import csv
+
 
 import torch
 from gensim.models import Word2Vec
@@ -27,7 +29,7 @@ parser.add_argument("--output-path",
 
 parser.add_argument("--epochs",
                     type=int,
-                    default=1,
+                    default=15,
                     help="Epochs.")
 
 parser.add_argument("--save-word2vec-wv",
@@ -80,13 +82,13 @@ def load_wv_embedding(wv_embedding_file: str):
 
 def main():
 
-    path = "/home/amar/Documents/NLP/project/good-reddit-conversations/data/tokenized-data.csv"
+    path = "./data/tokenized-data.csv"
 
     df = pd.read_csv(path)
-    re.sub("[\[\]\,\']","",df['stem_meaningful'][0]).split(" ")
+    re.sub("[\[\]\,\']","",df['stemmed_words'][0]).split(" ")
 
 
-    post2words_dict = {item[0]:re.sub("[\[\]\,\']","",item[1]['stem_meaningful']).split(" ") for item in df.iterrows()}
+    post2words_dict = {item[0]:re.sub("[\[\]\,\']","",item[1]['stemmed_words']).split(" ") for item in df.iterrows()}
 
     corpus = []
     for post in post2words_dict.values():
@@ -135,7 +137,24 @@ def main():
 
     # save to csv file
     out = pd.DataFrame(out, columns=['post_embedding','max_len'])
-    out.to_csv(args.output_path, index=None)
+
+    X_train, X_val, y_train, y_val = train_test_split(out['post_embedding'], out['max_len'], test_size=0.2, random_state=1)
+
+    with open('data/train.csv', 'w', newline='') as f_output:
+        tsv_output = csv.writer(f_output, delimiter=',')
+
+        for i in X_train.keys():
+            X_train[i].append(y_train[i])
+            tsv_output.writerow(X_train[i])
+
+    with open('data/validation.csv', 'w', newline='') as f_output:
+        tsv_output = csv.writer(f_output, delimiter=',')
+
+        for i in X_val.keys():
+            X_val[i].append(y_val[i])
+            tsv_output.writerow(X_val[i])
+
+    # out.to_csv(args.output_path, index=None)
 
 if __name__ == "__main__":
     main()

@@ -91,7 +91,7 @@ class Post:
 
 
 def main(args=None):
-    frames = [pd.read_csv(x) for x in ["data/2017-11.csv","data/2017-12.csv","data/2018-01.csv","data/2018-02.csv","data/2018-03.csv"]]
+    frames = [pd.read_csv(x) for x in ["data/archive/2017-11.csv","data/archive/2017-12.csv","data/archive/2018-01.csv","data/archive/2018-02.csv","data/archive/2018-03.csv"]]
     df = pd.concat(frames)
     info_for_sorting = pd.concat([df[[x]] for x in ["id","link_id","parent_id","body"]],axis = 1)
     info_for_sorting = info_for_sorting.dropna(axis=0, how='any',subset=["id","link_id","parent_id","body"])

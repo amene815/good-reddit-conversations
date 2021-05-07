@@ -119,42 +119,24 @@ def main():
     # load embedding
     embed_dict = load_wv_embedding(args.save_word2vec_wv)
 
-    # load file from embedding and create vector-representataion
-    graph_docs = post2words_dict.keys()
+    tokenized_data = [[embed_dict['stoi'][word] for word in sentence] for sentence in post2words_dict.values()]
 
-    out = []
-    for infile in graph_docs:
-        if infile not in post2words_dict:
-            continue
-        try:
-            word_list = [embed_dict["stoi"][word] for word in post2words_dict[infile]]
-        except:
-            raise ValueError("File containing operation out of vocab !!!")
-        layer_input = torch.LongTensor(word_list)
-        file_word_embedding = embed_dict["embedding_layer"](layer_input)
-        file_embedding = torch.mean(file_word_embedding, dim=0).tolist() # average the embedding for each word
-        out.append((file_embedding,df['max_len'][infile]))
+    X_train, X_val, y_train, y_val = train_test_split(tokenized_data, df['max_len'].tolist(), test_size=0.2, random_state=1)
 
-    # save to csv file
-    out = pd.DataFrame(out, columns=['post_embedding','max_len'])
-
-    X_train, X_val, y_train, y_val = train_test_split(out['post_embedding'], out['max_len'], test_size=0.2, random_state=1)
-
-    with open('data/post_train.csv', 'w', newline='') as f_output:
+    with open('data/train.csv', 'w', newline='') as f_output:
         tsv_output = csv.writer(f_output, delimiter=',')
 
-        for i in X_train.keys():
-            X_train[i].append(y_train[i])
-            tsv_output.writerow(X_train[i])
+        for i,x in enumerate(X_train):
+            x.append(y_train[i])
+            tsv_output.writerow(x)
 
-    with open('data/post_validation.csv', 'w', newline='') as f_output:
+    with open('data/validation.csv', 'w', newline='') as f_output:
         tsv_output = csv.writer(f_output, delimiter=',')
 
-        for i in X_val.keys():
-            X_val[i].append(y_val[i])
-            tsv_output.writerow(X_val[i])
+        for i,x in enumerate(X_val):
+            x.append(y_val[i])
+            tsv_output.writerow(x)
 
-    # out.to_csv(args.output_path, index=None)
 
 if __name__ == "__main__":
     main()

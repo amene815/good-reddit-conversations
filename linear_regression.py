@@ -1,33 +1,30 @@
 
 import numpy as np
-import pandas as pd
-import re
+import csv
 from sklearn.linear_model import LinearRegression
 from numpy import random
 from sklearn.model_selection import train_test_split
 
 
 
-# post_embeddings = np.array([ np.random.randint(2, size=10) for _ in range(50)])
+X_train = []
+y_train = []
+X_test = []
+y_test = []
+
+with open('data/train.csv') as csvDataFile:
+    csvReader = csv.reader(csvDataFile)
+    for row in csvReader:
+        X_train.append(row[:-1])
+        y_train.append(row[-1])
 
 
-df = pd.read_csv("vectorized_data.csv")
+with open('data/validation.csv') as csvDataFile:
+    csvReader = csv.reader(csvDataFile)
+    for row in csvReader:
+        X_test.append(row[:-1])
+        y_test.append(row[-1])
 
-post_embeddings = df['post_embedding'].values.tolist()
-# Data processing
-post_embeddings = [np.asarray(re.sub("[\[\]\,\']","",x).split(' '),dtype=np.float64) for x in post_embeddings]
-response = df['max_len'].values.tolist()
-
-
-# # number of following conversations.
-# response = np.array(np.random.randint(50, size=50))
-
-
-X_train, X_test, y_train, y_test = train_test_split(post_embeddings, response, test_size=0.33, random_state=123)
-
-
-# print("post embeddings shape: " , post_embeddings.shape)
-# print("response shape: " , response.shape)
 
 model = LinearRegression().fit(X_train, y_train)
 
@@ -51,5 +48,3 @@ for i in range(len(test_predictions)):
     test_error += (test_predictions[i] - y_test[i])**2
 test_error = test_error / len(test_predictions)
 print("Test Error: ", test_error)
-
-

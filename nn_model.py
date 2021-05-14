@@ -7,7 +7,9 @@ from torch import optim
 from torch.nn.utils import clip_grad_norm_ as clip_grad_norm
 from torch.nn import functional as F
 from torch.nn.utils.rnn import pad_sequence, pack_padded_sequence
+from tqdm import trange, tqdm
 
+device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
 class NeuralClassifier(nn.Module):
     def __init__(self, embed_size, feature_size, drop_rate=0.0):
@@ -60,7 +62,6 @@ class CNN(nn.Module):
         self.dropout = nn.Dropout(drop_rate)
         # ---------------------------------
         # Model Arch
-        # Remove the following line and define some parameters for the CNN model here
         self.cov1 = torch.nn.Conv1d(embed_size, feature_size, kernel_sizes[0])
         self.cov2 = torch.nn.Conv1d(embed_size, feature_size, kernel_sizes[1])
         self.cov3 = torch.nn.Conv1d(embed_size, feature_size, kernel_sizes[2])
@@ -72,17 +73,20 @@ class CNN(nn.Module):
 
         # ---------------------------------
         # === Hidden layer ===
-        x = pad_sequence(input).permute(1, 2, 0) # B x E x L
+        label = torch.tensor(label, dtype=torch.float).to(device)
+        x = pad_sequence(input, padding_value=0.0).permute(1, 2, 0).to(device) # B x E x L
 
-        hidden1 = F.relu(self.cov1(x)).squeeze()
-        hidden2 = F.relu(self.cov2(x)).squeeze()
-        hidden3 = F.relu(self.cov3(x)).squeeze()
+        hidden1 = F.relu(self.cov1(x)).view([x.shape[0],self.feature_size,-1])
+        hidden2 = F.relu(self.cov2(x)).view([x.shape[0],self.feature_size,-1])
+        hidden3 = F.relu(self.cov3(x)).view([x.shape[0],self.feature_size,-1])
 
         pooling1, _ = torch.max(hidden1, dim=-1)
         pooling2, _ = torch.max(hidden2, dim=-1)
         pooling3, _ = torch.max(hidden3, dim=-1)
 
+
         hidden = torch.cat((pooling1, pooling2, pooling3), 1)
+        hidden = self.dropout(hidden)
 
         # ---------------------------------
         # === Classification layer ===
@@ -90,6 +94,7 @@ class CNN(nn.Module):
 
         loss = F.mse_loss(logit.squeeze(), label.squeeze())
         return loss, logit
+
 
 
 class RNN(nn.Module):
@@ -112,7 +117,8 @@ class RNN(nn.Module):
 
         # ---------------------------------
         # === Hidden layer ===
-        padded = pad_sequence(input)
+        label = torch.tensor(label, dtype=torch.float).to(device)
+        padded = pad_sequence(input).to(device)
         x = pack_padded_sequence(padded,length, enforce_sorted=False) # Dim: T x B x E
 
         hidden, h_n = self.rnn1(x)
@@ -145,7 +151,13 @@ def batch_train(input, label, model, optimizer):
     clip_grad_norm(model.parameters(), 1.0)
     # gradient-based update parameter
     optimizer.step()
-    return model, loss.item()
+
+    loss_item = loss.item()
+
+    del loss
+    torch.cuda.empty_cache()
+
+    return model, loss_item
 
 
 def eval(data_iter, model):
@@ -157,19 +169,25 @@ def eval(data_iter, model):
     model.eval()
     # records
     val_loss, val_batch = 0, 0
-    total_example, correct_pred = 0, 0
+
     # iterate all the mini batches for evaluation
-    for b, batch in enumerate(data_iter):
-        # Forward: prediction
-        loss, logprob = model(batch[0], batch[1])
+    with torch.no_grad():
+        for b, batch in enumerate(tqdm(data_iter)):
+            # Forward: prediction
+            try:
+                loss, logprob = model(batch[0], batch[1])
 
-        val_batch += 1
-        val_loss += loss
+                val_batch += 1
+                val_loss += loss.item()
 
+                del loss, logprob
+                torch.cuda.empty_cache()
+            except:
+                continue
     return val_loss / val_batch
 
 
-def main(model_name):
+def main(model_name, train_iter, val_iter):
     """
     Both train_iter and val_iter can be is list; each element in the list is (input, label).
     For FFN,  the 'input' is the vector of a batch of docs (e.g., take the mean of all word embedding) B x E.
@@ -177,36 +195,41 @@ def main(model_name):
     B is the batch size, E is the word embedding size.
     """
     if model_name == 'ffn':
-        model = NeuralClassifier(embed_size=32, feature_size=16, drop_rate=0.0)
+        model = NeuralClassifier(embed_size=32, feature_size=16, drop_rate=0.0).to(device)
     elif model_name == 'cnn':
-        model = CNN(embed_size=32, feature_size=16, drop_rate=0.0)
+        model = CNN(embed_size=32, feature_size=16, drop_rate=0.0).to(device)
     elif model_name == 'rnn':
-        model = RNN(embed_size=32, feature_size=16, drop_rate=0.0)
+        model = RNN(embed_size=32, feature_size=16, drop_rate=0.0).to(device)
     else:
         raise ValueError("Unrecognized model name")
 
     optimizer = optim.Adam(model.parameters(), lr=0.001, betas=(0.9, 0.98), eps=1e-9)
 
-    epoch, val_step = 5, 50
+    epoch, record_step = 3, 50
 
-    TrnLoss, ValLoss, ValAcc = [], [], []
+    TrnLoss, ValLoss = [], []
     total_batch = 0
     for e in trange(epoch):
-        # print(e)
-        for b, batch in enumerate(train_iter):
-            total_batch += 1
+        tq = tqdm(train_iter)
+        for b, batch in enumerate(tq):
             # Update parameters with one batch
-            model, loss = batch_train(batch[0], batch[1], model, optimizer)
-            # Compute validation loss after each val_step
-            if total_batch % val_step == 0:
-                val_loss = eval(val_iter, model)
-                ValLoss.append(val_loss)
-                TrnLoss.append(loss)
-    print("The best validation accuracy = {:.4}".format(max(ValAcc)))
+            try:
+                model, loss = batch_train(batch[0], batch[1], model, optimizer)
+                total_batch += 1
+                if total_batch % record_step == 0:
+                    TrnLoss.append(loss)
+                    tq.set_postfix(total_batch=total_batch, TrnLoss=TrnLoss[-1])
+            except:
+                continue
+        val_loss = eval(val_iter, model)
+        ValLoss.append(val_loss)
+        tq.set_postfix(total_batch=total_batch, TrnLoss=TrnLoss[-1], vla_loss=ValLoss[-1])
+    print("The best validation accuracy = {:.4}".format(max(ValLoss)))
 
     plt.plot(range(len(TrnLoss)), TrnLoss, color="red", label="Training Loss")  # Training loss
     plt.plot(range(len(ValLoss)), ValLoss, color="blue", label="Develoopment Loss")  # Val loss
     plt.xlabel("Steps")
     plt.ylabel("MSE")
     plt.legend()
+    plt.show()
 

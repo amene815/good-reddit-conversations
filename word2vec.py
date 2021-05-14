@@ -32,6 +32,11 @@ parser.add_argument("--epochs",
                     default=15,
                     help="Epochs.")
 
+parser.add_argument("--post-mean",
+                    type=int,
+                    default=False,
+                    help="calculate the mean of the whole post; False for RNN and CNN.")
+
 parser.add_argument("--save-word2vec-wv",
                     type=str,
                     default='embeddedings.txt',
@@ -47,7 +52,6 @@ parser.add_argument("--workers",
                     default=multiprocessing.cpu_count(),
                     help="Number of workers. Default is 4.")
 
-print(parser)
 args = parser.parse_args()
 
 def load_wv_embedding(wv_embedding_file: str):
@@ -82,7 +86,7 @@ def load_wv_embedding(wv_embedding_file: str):
 
 def main():
 
-    path = "./data/tokenized-data.csv"
+    path = "tokenized-data.csv"
 
     df = pd.read_csv(path)
     re.sub("[\[\]\,\']","",df['stemmed_words'][0]).split(" ")
@@ -90,9 +94,7 @@ def main():
 
     post2words_dict = {item[0]:re.sub("[\[\]\,\']","",item[1]['stemmed_words']).split(" ") for item in df.iterrows()}
 
-    corpus = []
-    for post in post2words_dict.values():
-        corpus.append(post)
+    corpus = list(post2words_dict.values())
 
     # see detailed parameter settings in https://radimrehurek.com/gensim/models/word2vec.html
     w2v_model = Word2Vec(min_count=1, # Ignores all words with total frequency lower than this
@@ -132,8 +134,11 @@ def main():
             raise ValueError("File containing operation out of vocab !!!")
         layer_input = torch.LongTensor(word_list)
         file_word_embedding = embed_dict["embedding_layer"](layer_input)
-        file_embedding = torch.mean(file_word_embedding, dim=0).tolist() # average the embedding for each word
-        out.append((file_embedding,df['max_len'][infile]))
+        if args.post_mean:
+            file_embedding = torch.mean(file_word_embedding, dim=0).tolist() # average the embedding for each word
+            out.append((file_embedding,df['max_len'][infile]))
+        else:
+            out.append((file_word_embedding, df['max_len'][infile]))
 
     # save to csv file
     out = pd.DataFrame(out, columns=['post_embedding','max_len'])
@@ -155,6 +160,7 @@ def main():
             tsv_output.writerow(X_val[i])
 
     # out.to_csv(args.output_path, index=None)
+    return  X_train, X_val, y_train, y_val
 
 if __name__ == "__main__":
     main()

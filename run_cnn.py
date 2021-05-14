@@ -41,8 +41,13 @@ def run():
     path = "tokenized-data.csv"
     df = pd.read_csv(path)
 
-    with open('post2words_dict.pickle', 'rb') as handle:
-        post2words_dict = pickle.load(handle)
+    # with open('post2words_dict.pickle', 'rb') as handle:
+    #     post2words_dict = pickle.load(handle)
+    re.sub("[\[\]\,\']", "", df['stemmed_words'][0]).split(" ")
+
+    post2words_dict = {item[0]: re.sub("[\[\]\,\']", "", item[1]['stemmed_words']).split(" ") for item in df.iterrows()}
+
+    corpus = list(post2words_dict.values())
 
     # load embedding
     embed_dict = load_wv_embedding('embeddedings.txt')
@@ -52,46 +57,46 @@ def run():
 
     print('Finish Read')
 
-    plt.hist(df['max_len'],bins=70)
-    plt.savefig('data.jpg')
-    plt.show()
-    x = torch.tensor(df['max_len'], dtype=torch.float)
-    y = torch.zeros_like(x, dtype=torch.float)
+    # plt.hist(df['max_len'],bins=70)
+    # plt.savefig('data.jpg')
+    # plt.show()
+    # x = torch.tensor(df['max_len'], dtype=torch.float)
+    # y = torch.zeros_like(x, dtype=torch.float)
+    #
+    # print(F.mse_loss(x, y))
 
-    print(F.mse_loss(x, y))
+    outf = []
+    outl = []
+    for infile in graph_docs:
+        if infile not in post2words_dict:
+            continue
+        try:
+            word_list = [embed_dict["stoi"][word] for word in post2words_dict[infile]]
+        except:
+            raise ValueError("File containing operation out of vocab !!!")
+        layer_input = torch.tensor(word_list, dtype=torch.long)
+        file_word_embedding = embed_dict["embedding_layer"](layer_input)
+        outf.append(file_word_embedding)
+        outl.append(torch.tensor(df['max_len'][infile]))
 
-    # outf = []
-    # outl = []
-    # for infile in graph_docs:
-    #     if infile not in post2words_dict:
-    #         continue
-    #     try:
-    #         word_list = [embed_dict["stoi"][word] for word in post2words_dict[infile]]
-    #     except:
-    #         raise ValueError("File containing operation out of vocab !!!")
-    #     layer_input = torch.tensor(word_list, dtype=torch.long)
-    #     file_word_embedding = embed_dict["embedding_layer"](layer_input)
-    #     outf.append(file_word_embedding)
-    #     outl.append(torch.tensor(df['max_len'][infile]))
-    #
-    # del graph_docs, post2words_dict, embed_dict
-    #
-    # X_train, X_val, y_train, y_val = train_test_split(outf, outl, test_size=0.2,
-    #                                                   random_state=1)
-    #
-    # del outl, outf
+    del graph_docs, post2words_dict, embed_dict
 
-    # print('Finish splite dataset')
-    #
-    # trn_dataset = ListDataset(X_train, y_train)
-    # trn_data_loader = DataLoader(trn_dataset, 16, shuffle=True, collate_fn=collate)
-    #
-    # val_dataset = ListDataset(X_train, y_train)
-    # val_data_loader = DataLoader(val_dataset, 16, shuffle=False, collate_fn=collate)
-    #
-    # print('Finish build dataload')
-    #
-    # nn.main('ffn', trn_data_loader, val_data_loader)
+    X_train, X_val, y_train, y_val = train_test_split(outf, outl, test_size=0.2,
+                                                      random_state=1)
+
+    del outl, outf
+
+    print('Finish splite dataset')
+
+    trn_dataset = ListDataset(X_train, y_train)
+    trn_data_loader = DataLoader(trn_dataset, 16, shuffle=True, collate_fn=collate)
+
+    val_dataset = ListDataset(X_train, y_train)
+    val_data_loader = DataLoader(val_dataset, 16, shuffle=False, collate_fn=collate)
+
+    print('Finish build dataload')
+
+    nn.main('ffn', trn_data_loader, val_data_loader)
 
 if __name__ == '__main__':
     run()
